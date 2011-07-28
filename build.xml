@@ -1,0 +1,17 @@
+<project name="reflectiontest">
+  <property name="src" location="src" />
+  <property name="bin" location="bin" />
+
+  <target name="init" >
+    <tstamp />
+    <mkdir dir="${bin}" />
+  </target>
+
+  <target name="compile" depends="init"
+          description="compile the source " >
+    <!-- Compile the java code from ${src} into ${bin} -->
+    <javac srcdir="${src}" destdir="${bin}" debug="true" deprecation="true" >
+      <compilerarg value="-Xlint:unchecked" />
+    </javac>
+  </target>
+</project>
