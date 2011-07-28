@@ -95,6 +95,8 @@ sub stdout_handler {
     $self->{ret} = $self->objectify($1);
   } elsif ($line =~ m/^call_static_method return: ([a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
     $self->{ret} = $self->objectify($1);
+  } elsif ($line =~ m/^fetch_static_field return: ([a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+    $self->{ret} = $self->objectify($1);
   } elsif ($line =~ m/^dump_string: '(.*)'$/) {
     $self->{ret} = $1;
     $self->{ret} =~ s/\\n/\n/g;
@@ -214,6 +216,19 @@ sub call_static_method {
   my ($self, $class, $name) = @_;
 
   $self->{in_string} .= "call_static_method $class $name\n";
+
+  delete $self->{ret};
+  while (!$self->{ret}) {
+    $self->{harness}->pump;
+  }
+
+  return $self->{ret};
+}
+
+sub fetch_static_field {
+  my ($self, $class, $name) = @_;
+
+  $self->{in_string} .= "fetch_static_field $class $name\n";
 
   delete $self->{ret};
   while (!$self->{ret}) {

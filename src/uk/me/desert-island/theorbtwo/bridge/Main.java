@@ -53,15 +53,15 @@ public class Main {
   }
 
   private static void handle_line(StringBuilder in_line) {
-	String command_string;
-	String rest_string;
-	  
-	command_string = in_line.substring(0, in_line.indexOf(" "));
-	rest_string = in_line.substring(in_line.indexOf(" ")+1);
-	
-	System.err.printf("command_string = '%s', rest_string = '%s'\n", command_string, rest_string);
-	  
-	if (command_string.equals("create")) {
+    String command_string;
+    String rest_string;
+    
+    command_string = in_line.substring(0, in_line.indexOf(" "));
+    rest_string = in_line.substring(in_line.indexOf(" ")+1);
+    
+    System.err.printf("command_string = '%s', rest_string = '%s'\n", command_string, rest_string);
+    
+    if (command_string.equals("create")) {
       java.lang.Class klass;
       java.lang.Object obj;
       
@@ -86,18 +86,18 @@ public class Main {
       System.out.printf("DESTROYed\n");
       
     } else if (command_string.equals("SHUTDOWN")) {
-        System.err.printf("Got SHUTDOWN, shutting down.\n");
-
-        if (!known_objects.isEmpty()) {
-          for (String key : known_objects.keySet()) {
-            System.err.printf("%s: %s\n", key, known_objects.get(key));
-          }
+      System.err.printf("Got SHUTDOWN, shutting down.\n");
+      
+      if (!known_objects.isEmpty()) {
+        for (String key : known_objects.keySet()) {
+          System.err.printf("%s: %s\n", key, known_objects.get(key));
         }
-        
-        System.out.printf("SHUTDOWN\n");
-
-        System.exit(3);
-
+      }
+      
+      System.out.printf("SHUTDOWN\n");
+      
+      System.exit(3);
+      
     } else if (command_string.equals("call_method")) {
       String obj_ident;
       String method_name;
@@ -112,12 +112,12 @@ public class Main {
         System.err.printf("junk after method name, rest_string='%s'\n", rest_string);
         return;
       }
-
+      
       method_name = rest_string;
       rest_string = "";
-
+      
       System.err.printf("call_method, obj_ident='%s', method_name='%s', rest_string='%s'\n", obj_ident, method_name, rest_string);
-
+      
       obj = known_objects.get(obj_ident);
       try {
         meth = obj.getClass().getMethod(method_name);
@@ -125,7 +125,7 @@ public class Main {
         System.out.printf("thrown: %s\n", e.toString());
         return;
       }
-
+      
       try {
         ret = meth.invoke(obj);
       } catch (java.lang.Throwable e) {
@@ -135,12 +135,12 @@ public class Main {
       
       System.out.printf("call_method return: %s\n", obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
-
+      
     } else if (command_string.equals("call_static_method")) {
       String[] split = rest_string.split(" ");
-      Class klass;
+      Class<?> klass;
       Object ret;
-
+      
       if (split.length != 2) {
         System.err.printf("Syntax error in call_static_method, split into %d pieces", split.length);
       }
@@ -148,6 +148,26 @@ public class Main {
       try {
         klass = Class.forName(split[0]);
         ret = klass.getMethod(split[1]).invoke(null);
+      } catch (java.lang.Throwable e) {
+        System.out.printf("thrown: %s\n", e.toString());
+        return;
+      }
+
+      System.out.printf("call_static_method return: %s\n", obj_ident(ret));
+      known_objects.put(obj_ident(ret), ret);
+      
+    } else if (command_string.equals("fetch_static_field")) {
+      String[] split = rest_string.split(" ");
+      Class klass;
+      Object ret;
+      
+      if (split.length != 2) {
+        System.err.printf("Syntax error in fetch_static_field, split into %d pieces", split.length);
+      }
+
+      try {
+        klass = Class.forName(split[0]);
+        ret = klass.getField(split[1]).get(null);
       } catch (java.lang.Throwable e) {
         System.out.printf("thrown: %s\n", e.toString());
         return;

@@ -2,6 +2,7 @@ package Java::Bridge::java::lang::Object;
 use warnings;
 use strict;
 use overload ('""' => \&stringify,
+              #'%{}' => \&hashrefify,
               #nomethod => \&nomethod,
               #fallback => 0,
               bool => sub{1},
@@ -35,6 +36,13 @@ sub AUTOLOAD {
   #if (@_ != 1) {
   #  die "Only methods without arguments supported (so far)";
   #}
+
+  if (!$self) {
+    # Static field -- constant, normally.
+    my ($class, $methname) = ($AUTOLOAD =~ m/^(.*)::(.*?)$/);
+
+    return $class->_static_bridge->fetch_static_field($class->_java_name, $methname);
+  }
 
   my $realclass = ref($self) || $self;
   my $classlen = length($realclass);
