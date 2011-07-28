@@ -1,10 +1,16 @@
 package Java::Bridge;
 use warnings;
 use strict;
+
+BEGIN {
+  our $VERSION = 0.01;
+}
+
 use Scalar::Util 'weaken';
 use IPC::Run 'new_chunker';
 use Class::MOP;
 use Java::Bridge::java::lang::Object;
+
 
 my $global_self;
 
