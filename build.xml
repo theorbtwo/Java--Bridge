@@ -11,7 +11,7 @@
           description="compile the source " >
     <!-- Compile the java code from ${src} into ${bin} -->
     <javac srcdir="${src}" destdir="${bin}" debug="true" deprecation="true" >
-      <compilerarg value="-Xlint:unchecked" />
+      <compilerarg value="-Xlint:all" />
     </javac>
   </target>
 </project>
