@@ -173,7 +173,7 @@ public class Main {
     StringBuilder ret = new StringBuilder();
     ret = ret.append(obj.getClass().getName());
     ret = ret.append(">");
-    ret = ret.append(Integer.toHexString(obj.hashCode()));
+    ret = ret.append(Integer.toHexString(System.identityHashCode(obj)));
 
     return ret.toString();
   }
