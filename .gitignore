@@ -1,0 +1,15 @@
+*~
+# Generated files from EU::MM
+Makefile
+Makefile.old
+blib
+pm_to_blib
+
+# Generated files from ant
+bin/uk
+
+# generated files from kwalatiee
+Debian_CPANTS.txt
+
+# generated files from Devel::NYTProf
+cover_db/
