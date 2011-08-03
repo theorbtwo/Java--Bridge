@@ -7,6 +7,8 @@ use Java::Bridge;
 $|=1;
 
 my $bridge = Java::Bridge->new;
+$bridge->setup_class('java.lang.System');
+my $out = Java::Bridge::java::lang::System::err();
+my $properties = Java::Bridge::java::lang::System->getProperties;
 
-$bridge->setup_class('java.lang.Boolean');
-print Java::Bridge::java::lang::Boolean::TRUE(), "\n";
+$properties->list($out);

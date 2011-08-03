@@ -102,18 +102,27 @@ public class Main {
       Method meth;
       Object ret;
       
+      Class<?>[] argument_classes = new Class<?>[split.length - 3];
+      Object[] arguments = new Object[split.length - 3];
+
       // err.printf("call_method, obj_ident='%s', method_name='%s'\n", obj_ident, method_name);
       
       obj = known_objects.get(obj_ident);
+
+      for (int i = 3; i < split.length; i++) {
+        arguments[i-3] = known_objects.get(split[i]);
+        argument_classes[i-3] = arguments[i-3].getClass();
+      }
+
       try {
-        meth = obj.getClass().getMethod(method_name);
+        meth = obj.getClass().getMethod(method_name, argument_classes);
       } catch (java.lang.Throwable e) {
         out.printf("thrown: %s\n", e.toString());
         return;
       }
       
       try {
-        ret = meth.invoke(obj);
+        ret = meth.invoke(obj, arguments);
       } catch (java.lang.Throwable e) {
         out.printf("thrown: %s\n", e.toString());
         return;
@@ -171,6 +180,9 @@ public class Main {
 
   private static String obj_ident(java.lang.Object obj) {
     StringBuilder ret = new StringBuilder();
+    if (obj == null) {
+      return "null";
+    }
     ret = ret.append(obj.getClass().getName());
     ret = ret.append(">");
     ret = ret.append(Integer.toHexString(System.identityHashCode(obj)));

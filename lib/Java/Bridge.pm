@@ -35,7 +35,6 @@ sub new {
                                        '2>', new_chunker("\n"), sub {$self->stderr_handler(@_)}
                                       );
   $self->{is_ready} = 0;
-  
   while (!$self->{is_ready}) {
     $self->{harness}->pump;
   }
@@ -85,17 +84,19 @@ sub stdout_handler {
   my ($self, $line) = @_;
   chomp $line;
 
+  print "stdout_handler: '$line'\n";
+
   if ($line eq 'Ready') {
     $self->{is_ready} = 1;
-  } elsif ($line =~ m/^([a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^(null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
     $self->{return} = $self->objectify($1);
   } elsif ($line eq 'DESTROYed') {
     $self->{destroyed} = 1;
-  } elsif ($line =~ m/^call_method return: ([a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^call_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
     $self->{ret} = $self->objectify($1);
-  } elsif ($line =~ m/^call_static_method return: ([a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^call_static_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
     $self->{ret} = $self->objectify($1);
-  } elsif ($line =~ m/^fetch_static_field return: ([a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^fetch_static_field return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
     $self->{ret} = $self->objectify($1);
   } elsif ($line =~ m/^dump_string: '(.*)'$/) {
     $self->{ret} = $1;
@@ -120,7 +121,7 @@ sub setup_class {
 
   my $perl_class = java_name_to_perl_name($java_name);
 
-  warn "setup_class $java_name -> $perl_class";
+  # warn "setup_class $java_name -> $perl_class";
 
   Class::MOP::Class->create(
                             $perl_class,
@@ -151,6 +152,10 @@ sub setup_class {
 
 sub objectify {
   my ($bridge, $obj_ident) = @_;
+
+  if ($obj_ident eq 'null') {
+    return undef;
+  }
 
   if (exists $bridge->{known_objects}{$obj_ident} and
       $bridge->{known_objects}{$obj_ident}
@@ -200,12 +205,23 @@ sub stderr_handler {
 }
 
 sub call_method {
-  my ($self, $obj_ident, $name) = @_;
+  my ($self, $obj_ident, $name, @args) = @_;
 
-  $self->{in_string} .= "call_method $obj_ident $name\n";
+  my @wire_args;
+  for my $arg (@args) {
+    if (ref $arg and $arg->isa('Java::Bridge::java::lang::Object')) {
+      push @wire_args, $arg->{obj_ident};
+    } else {
+      die "Don't know how to pass $arg over the wire\n";
+    }
+  }
+
+  my $wire_args = join ' ', @wire_args;
+
+  $self->{in_string} .= "call_method $obj_ident $name $wire_args\n";
 
   delete $self->{ret};
-  while (!$self->{ret}) {
+  while (exists $self->{ret}) {
     $self->{harness}->pump;
   }
 
@@ -218,7 +234,7 @@ sub call_static_method {
   $self->{in_string} .= "call_static_method $class $name\n";
 
   delete $self->{ret};
-  while (!$self->{ret}) {
+  while (!exists $self->{ret}) {
     $self->{harness}->pump;
   }
 
@@ -231,7 +247,7 @@ sub fetch_static_field {
   $self->{in_string} .= "fetch_static_field $class $name\n";
 
   delete $self->{ret};
-  while (!$self->{ret}) {
+  while (!exists $self->{ret}) {
     $self->{harness}->pump;
   }
 
@@ -244,7 +260,7 @@ sub dump_string {
   $self->{in_string} .= "dump_string $obj_ident\n";
 
   delete $self->{ret};
-  while (!$self->{ret}) {
+  while (!exists $self->{ret}) {
     $self->{harness}->pump;
   }
 
