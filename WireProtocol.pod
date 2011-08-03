@@ -9,7 +9,15 @@ on making fairly deep changes to the code.
 The protocol consists of a sequence of commands from the perl side to
 the java side.  Each command is a line of text, terminated by a
 newline.  They consist of several elements, seperated by a single
-space character.  The first element of each line is the command name.
+space character.
+
+The first element of each line is a command_id -- an arbitrary
+identifier that the java side will pass you back to let you know what
+command this is a repsonse to.  It must be non-empty, and cannot
+include space characters.  Other then that, the java side doesn't care
+what it consists of.
+
+The second element of each line is the command name.
 
 An object is represented by an obj_ident, which is a java class name
 (in binary form), followed by a '>' and the System.identityHashCode()
@@ -20,17 +28,17 @@ has the obj_ident C<null>.
 
 The commands are:
 
-=over4
+=over 4
 
 =item create
 
-  create java.lang.Runtime
+  1 create java.lang.Runtime
 
 Calls the nullary constructor of the given class.
 
 =item DESTROY
 
-  DESTROY java.lang.Runtime>1234
+  2 DESTROY java.lang.Runtime>1234
 
 Notes that the perl side has finished with this object.  The java side
 will release it's reference to it in the big hash of objects.  Note
@@ -39,22 +47,32 @@ something else might hold a reference to it.
 
 =item SHUTDOWN
 
-  SHUTDOWN
+  3 SHUTDOWN
 
 Notes that the perl side is no longer intersted in the bridge.  Any
-objects that have not been DESTROYed will be reported as leaked.
+objects that have not been DESTROYed will be reported as leaked, the
+java side will reply to the command, and then exit.
 
 =item call_method
 
-  call_method java.lang.System>1234 getProperties
+  4 call_method java.lang.System>1234 getProperties
 
 Calls, on the given object, the given method.  Currently, methods that
 take parameters are not yet supported.
 
 =item call_static_method
 
-  call_static_method java.lang.Boolean TRUE
+  5 call_static_method java.lang.System getProperties
 
 Calls, on the given *class*, the given static method.
+
+=back
+
+=item fetch_static_field
+
+  6 fetch_static_field java.lang.Boolean TRUE
+
+Fetches, on the given *class*, the given static field.  (Static fields
+are often used for constants.)
 
 =back

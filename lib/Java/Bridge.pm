@@ -42,6 +42,28 @@ sub new {
   return $self;
 }
 
+sub send_and_wait {
+  my ($self, $command) = @_;
+
+
+  $command .= "\n"
+    unless $command =~ m/\n$/;
+
+  my $command_id = ++$self->{command_id};
+  
+  $command = "$command_id $command";
+
+  print "send_and_wait sending $command";
+
+  $self->{in_string} .= $command;
+
+  while (!exists $self->{replies}{$command_id}) {
+    $self->{harness}->pump;
+  }
+
+  return delete $self->{replies}{$command_id};
+}
+
 sub create {
   my ($self, $java_class) = @_;
 
@@ -49,28 +71,22 @@ sub create {
     die "Non-default constructors not yet handled";
   }
 
-  $self->{in_string} .= "create $java_class\n";
-
-  delete $self->{return};
-  while (!exists $self->{return}) {
-    $self->{harness}->pump;
-  }
-  
-  return $self->{return};
+  $self->send_and_wait("create $java_class\n");
 }
 
-# END {
-#   my $self = $global_self;
-#   # This should get DESTROYed after all bridged objects on it do, but that's OK, it will, since the bridged objects
-#   # have a hashref with a reference to us.  Our references to them, OTOH, are weak.
+END {
+  my $self = $global_self;
+  # This should get DESTROYed after all bridged objects on it do, but that's OK, it will, since the bridged objects
+  # have a hashref with a reference to us.  Our references to them, OTOH, are weak.
 
-#   return if $self->{ready_for_suicide};
+  return if $self->{ready_for_suicide};
+  
+  $self->send_and_wait('SHUTDOWN');
 
-#   $self->{in_string} = "SHUTDOWN\n";
-#   while (!$self->{ready_for_suicide}) {
-#     $self->{harness}->pump;
-#   }
-# }
+  $self->{ready_for_suicide}++;
+
+  $self->{harness}->finish;
+}
 
 #sub DESTROY {
 #  my ($self) = @_;
@@ -88,22 +104,25 @@ sub stdout_handler {
 
   if ($line eq 'Ready') {
     $self->{is_ready} = 1;
-  } elsif ($line =~ m/^(null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
-    $self->{return} = $self->objectify($1);
-  } elsif ($line eq 'DESTROYed') {
-    $self->{destroyed} = 1;
-  } elsif ($line =~ m/^call_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
-    $self->{ret} = $self->objectify($1);
-  } elsif ($line =~ m/^call_static_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
-    $self->{ret} = $self->objectify($1);
-  } elsif ($line =~ m/^fetch_static_field return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
-    $self->{ret} = $self->objectify($1);
-  } elsif ($line =~ m/^dump_string: '(.*)'$/) {
-    $self->{ret} = $1;
-    $self->{ret} =~ s/\\n/\n/g;
-    $self->{ret} =~ s/\\(.)/$1/g;
-  } elsif ($line =~ m/^thrown: (.*)$/) {
-    die $1;
+  } elsif ($line =~ m/^(\d+) (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+    $self->{replies}{$1} = $self->objectify($2);
+  } elsif ($line =~ m/^(\d+) DESTROYed$/) {
+    $self->{replies}{$1} = 1;
+  } elsif ($line =~ m/^(\d+) SHUTDOWN$/) {
+    $self->{replies}{$1} = 1;
+  } elsif ($line =~ m/^(\d+) call_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+    $self->{replies}{$1} = $self->objectify($2);
+  } elsif ($line =~ m/^(\d+) call_static_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+    $self->{replies}{$1} = $self->objectify($2);
+  } elsif ($line =~ m/^(\d+) fetch_static_field return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+    $self->{replies}{$1} = $self->objectify($2);
+  } elsif ($line =~ m/^(\d+) dump_string: '(.*)'$/) {
+    my ($command_id, $ret) = ($1, $2);
+    $ret =~ s/\\n/\n/g;
+    $ret =~ s/\\(.)/$1/g;
+    $self->{replies}{$command_id} = $ret;
+  } elsif ($line =~ m/^(\d+) thrown: (.*)$/) {
+    die $2;
   } else {
     print "Got unhandled stuff from subprocess: '$line'\n";
   }
@@ -188,13 +207,7 @@ sub destroy_object {
   my ($self, $obj_ident) = @_;
 
   delete $self->{known_objects}{$obj_ident};
-  $self->{in_string} .= "DESTROY $obj_ident\n";
-  
-  delete $self->{destroyed};
-  while (!$self->{destroyed}) {
-    $self->{harness}->pump;
-  }
-  delete $self->{destroyed};
+  $self->send_and_wait("DESTROY $obj_ident\n");
 }
 
 sub stderr_handler {
@@ -218,53 +231,25 @@ sub call_method {
 
   my $wire_args = join ' ', @wire_args;
 
-  $self->{in_string} .= "call_method $obj_ident $name $wire_args\n";
-
-  delete $self->{ret};
-  while (exists $self->{ret}) {
-    $self->{harness}->pump;
-  }
-
-  return $self->{ret};
+  $self->send_and_wait("call_method $obj_ident $name $wire_args\n");
 }
 
 sub call_static_method {
   my ($self, $class, $name) = @_;
 
-  $self->{in_string} .= "call_static_method $class $name\n";
-
-  delete $self->{ret};
-  while (!exists $self->{ret}) {
-    $self->{harness}->pump;
-  }
-
-  return $self->{ret};
+  $self->send_and_wait("call_static_method $class $name\n");
 }
 
 sub fetch_static_field {
   my ($self, $class, $name) = @_;
 
-  $self->{in_string} .= "fetch_static_field $class $name\n";
-
-  delete $self->{ret};
-  while (!exists $self->{ret}) {
-    $self->{harness}->pump;
-  }
-
-  return $self->{ret};
+  $self->send_and_wait("fetch_static_field $class $name\n");
 }
 
 sub dump_string {
   my ($self, $obj_ident) = @_;
 
-  $self->{in_string} .= "dump_string $obj_ident\n";
-
-  delete $self->{ret};
-  while (!exists $self->{ret}) {
-    $self->{harness}->pump;
-  }
-
-  return $self->{ret};
+  $self->send_and_wait("dump_string $obj_ident\n");
 }
 
 'a series of tubes';

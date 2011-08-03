@@ -1,23 +1,17 @@
 package Java::Bridge::java::lang::Object;
 use warnings;
 use strict;
-use overload ('""' => \&stringify,
+use overload ('""' => sub {$_[0]->toString},
               #'%{}' => \&hashrefify,
               #nomethod => \&nomethod,
               #fallback => 0,
               bool => sub{1},
              );
 
-sub stringify {
-  my ($self) = @_;
-
-  $self->toString;
-}
-
-sub nomethod {
-  my ($left, $right, $reversed, $operator) = @_;
-  die "nomethod for java.lang.Object, operator=$operator\n";
-}
+#sub nomethod {
+#  my ($left, $right, $reversed, $operator) = @_;
+#  die "nomethod for java.lang.Object, operator=$operator\n";
+#}
 
 sub DESTROY {
   my ($self) = @_;
