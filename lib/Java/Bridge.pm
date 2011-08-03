@@ -6,7 +6,7 @@ BEGIN {
   our $VERSION = 0.01;
 }
 
-use Scalar::Util 'weaken';
+use Scalar::Util 'weaken', 'looks_like_number';
 use IPC::Run 'new_chunker';
 use Class::MOP;
 use Java::Bridge::java::lang::Object;
@@ -179,11 +179,7 @@ sub objectify {
   if (exists $bridge->{known_objects}{$obj_ident} and
       $bridge->{known_objects}{$obj_ident}
      ) {
-    # Note the lack of "exists" -- a weak ref that got DESTROYed will
-    # keep an entry in the hash, with undef.  Could use exists to keep
-    # the hash from growing due to the test autovivifying, but we're
-    # about to add it to the hash anyway.
-    # This comment is probably far longer then it deserves to be.
+    print "Reusing existing $obj_ident\n";
     return $bridge->{known_objects}{$obj_ident};
   }
 
@@ -217,16 +213,48 @@ sub stderr_handler {
   print STDERR "(From across bridge): $line\n";
 }
 
+sub make_string {
+  my ($self, $str) = @_;
+
+  $str =~ s/\\/\\\\/g;
+  $str =~ s/ /\\x20/g;
+  $str =~ s/\n/\\n/g;
+  
+  $self->send_and_wait("make_string $str");
+}
+
+sub magic_argument_to_java {
+  my ($self, $perlish) = @_;
+  my $temp;
+  my $obj_ident;
+
+  die "magic_argument_to_java must be called in list context"
+    unless wantarray;
+
+  if (not defined $perlish) {
+    return ('null', undef);
+  } elsif (ref $perlish and $perlish->isa('Java::Bridge::java::lang::Object')) {
+    return ($perlish->{obj_ident}, undef);
+  } elsif (not ref $perlish and not looks_like_number $perlish) {
+    my $strobj = $self->make_string($perlish);
+    return ($strobj->{obj_ident}, $strobj);
+  } else {
+    die "Don't know how to magically make $perlish into a java argument";
+  }
+}
+
 sub call_method {
   my ($self, $obj_ident, $name, @args) = @_;
 
+  # We need to hold on to a reference to the strings until after the send_and_wait
+  # has finished, or they will be DESTROYed before they are sent off.
+  my @holder;
   my @wire_args;
+
   for my $arg (@args) {
-    if (ref $arg and $arg->isa('Java::Bridge::java::lang::Object')) {
-      push @wire_args, $arg->{obj_ident};
-    } else {
-      die "Don't know how to pass $arg over the wire\n";
-    }
+    my ($wire_arg, $holder) = $self->magic_argument_to_java($arg);
+    push @wire_args, $wire_arg;
+    push @holder, $holder;
   }
 
   my $wire_args = join ' ', @wire_args;
@@ -235,9 +263,22 @@ sub call_method {
 }
 
 sub call_static_method {
-  my ($self, $class, $name) = @_;
+  my ($self, $class, $name, @args) = @_;
 
-  $self->send_and_wait("call_static_method $class $name\n");
+  # We need to hold on to a reference to the strings until after the send_and_wait
+  # has finished, or they will be DESTROYed before they are sent off.
+  my @holder;
+  my @wire_args;
+
+  for my $arg (@args) {
+    my ($wire_arg, $holder) = $self->magic_argument_to_java($arg);
+    push @wire_args, $wire_arg;
+    push @holder, $holder;
+  }
+
+  my $wire_args = join ' ', @wire_args;
+
+  $self->send_and_wait("call_static_method $class $name $wire_args\n");
 }
 
 sub fetch_static_field {

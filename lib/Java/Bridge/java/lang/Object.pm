@@ -7,6 +7,7 @@ use overload ('""' => sub {$_[0]->toString},
               #fallback => 0,
               bool => sub{1},
              );
+use Carp 'cluck';
 
 #sub nomethod {
 #  my ($left, $right, $reversed, $operator) = @_;
@@ -15,6 +16,8 @@ use overload ('""' => sub {$_[0]->toString},
 
 sub DESTROY {
   my ($self) = @_;
+
+  # cluck("Destroy");
 
   # While in global destroy, all bets are off, so make sure the bridge still exists.
   # I'd love a better way to fix this.

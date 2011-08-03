@@ -136,9 +136,17 @@ public class Main {
       Class<?> klass;
       Object ret;
       
+      Class<?>[] argument_classes = new Class<?>[split.length - 4];
+      Object[] arguments = new Object[split.length - 4];
+
+      for (int i = 4; i < split.length; i++) {
+        arguments[i-4] = known_objects.get(split[i]);
+        argument_classes[i-4] = arguments[i-4].getClass();
+      }
+
       try {
         klass = Class.forName(split[2]);
-        ret = klass.getMethod(split[3]).invoke(null);
+        ret = klass.getMethod(split[3], argument_classes).invoke(null, arguments);
       } catch (java.lang.Throwable e) {
         out.printf("%s thrown: %s\n", command_id, e.toString());
         return;
@@ -172,6 +180,16 @@ public class Main {
       out_string = newline_pattern.matcher(out_string).replaceAll("\\n");
 
       out.printf("%s dump_string: '%s'\n", command_id, out_string);
+
+    } else if (command_string.equals("make_string")) {
+      String the_string = split[2];
+
+      the_string = Pattern.compile("\\\\").matcher(the_string).replaceAll("\\");
+      the_string = Pattern.compile("\\x20").matcher(the_string).replaceAll(" ");
+      the_string = Pattern.compile("\\n").matcher(the_string).replaceAll("\n");
+
+      known_objects.put(obj_ident(the_string), the_string);
+      out.printf("%s %s\n", command_id, obj_ident(the_string));
 
     } else {
       err.print("Huh?\n");

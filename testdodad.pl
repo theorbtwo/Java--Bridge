@@ -9,6 +9,4 @@ $|=1;
 my $bridge = Java::Bridge->new;
 $bridge->setup_class('java.lang.System');
 my $out = Java::Bridge::java::lang::System::err();
-my $properties = Java::Bridge::java::lang::System->getProperties;
-
-$properties->list($out);
+say Java::Bridge::java::lang::System->getProperty("thispropertydoesnotexist", "thevalueofthenonexistantproperty");
