@@ -10,9 +10,12 @@ use Scalar::Util 'weaken', 'looks_like_number';
 use IPC::Run 'new_chunker';
 use Class::MOP;
 use Java::Bridge::java::lang::Object;
+use Java::Bridge::array;
 
 
 my $global_self;
+
+my $obj_ident_re = qr/null|\[*L?[a-z][A-Za-z0-9.\$]*;*>[0-9a-f]+/;
 
 sub new {
   my ($class) = @_;
@@ -104,18 +107,20 @@ sub stdout_handler {
 
   if ($line eq 'Ready') {
     $self->{is_ready} = 1;
-  } elsif ($line =~ m/^(\d+) (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^(\d+) ($obj_ident_re)$/) {
     $self->{replies}{$1} = $self->objectify($2);
   } elsif ($line =~ m/^(\d+) DESTROYed$/) {
     $self->{replies}{$1} = 1;
   } elsif ($line =~ m/^(\d+) SHUTDOWN$/) {
     $self->{replies}{$1} = 1;
-  } elsif ($line =~ m/^(\d+) call_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^(\d+) call_method return: ($obj_ident_re)$/) {
     $self->{replies}{$1} = $self->objectify($2);
-  } elsif ($line =~ m/^(\d+) call_static_method return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^(\d+) call_static_method return: ($obj_ident_re)$/) {
     $self->{replies}{$1} = $self->objectify($2);
-  } elsif ($line =~ m/^(\d+) fetch_static_field return: (null|[a-z][A-Za-z0-9.\$]*>[0-9a-f]+)$/) {
+  } elsif ($line =~ m/^(\d+) fetch_static_field return: ($obj_ident_re)$/) {
     $self->{replies}{$1} = $self->objectify($2);
+  } elsif ($line =~ m/^(\d+) num return: (\d+)$/) {
+    $self->{replies}{$1} = $2;
   } elsif ($line =~ m/^(\d+) dump_string: '(.*)'$/) {
     my ($command_id, $ret) = ($1, $2);
     $ret =~ s/\\n/\n/g;
@@ -183,10 +188,15 @@ sub objectify {
     return $bridge->{known_objects}{$obj_ident};
   }
 
-  my ($java_class, $hash_code) = ($obj_ident =~ m/^([a-z][A-Za-z0-9.\$]*)>([0-9a-f]+)$/);
+  my ($java_class, $hash_code) = ($obj_ident =~ m/^(\[*L?[a-z][A-Za-z0-9.\$]*;*)>([0-9a-f]+)$/);
 
-  my $perl_class = $bridge->setup_class($java_class);
-
+  my $perl_class;
+  if ($java_class =~ m/^\[L(.*);$/) {
+    $perl_class = 'Java::Bridge::array';
+  } else {
+    $perl_class = $bridge->setup_class($java_class);
+  }
+  
   my $obj = bless {}, $perl_class;
   $obj->{obj_ident} = $obj_ident;
   $obj->{hash_code} = $hash_code;
@@ -195,7 +205,7 @@ sub objectify {
   $bridge->{known_objects}{$obj_ident} = $obj;
   # anti-leak!
   weaken($bridge->{known_objects}{$obj_ident});
-
+  
   return $obj;
 }
 
@@ -285,6 +295,24 @@ sub fetch_static_field {
   my ($self, $class, $name) = @_;
 
   $self->send_and_wait("fetch_static_field $class $name\n");
+}
+
+sub fetch_field {
+  my ($self, $obj_ident, $name) = @_;
+
+  $self->send_and_wait("fetch_field $obj_ident $name\n");
+}
+
+sub get_array_length {
+  my ($self, $obj_ident) = @_;
+
+  $self->send_and_wait("get_array_length $obj_ident\n");
+}
+
+sub fetch_array_element {
+  my ($self, $obj_ident, $index) = @_;
+
+  $self->send_and_wait("fetch_array_element $obj_ident $index\n");
 }
 
 sub dump_string {

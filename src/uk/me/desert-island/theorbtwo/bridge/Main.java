@@ -170,6 +170,46 @@ public class Main {
       out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
       
+    } else if (command_string.equals("fetch_field")) {
+      Object obj;
+      Object ret;
+      
+      //  0 1           2                                   3
+      //  7 fetch_field [Ljava.lang.reflect.Method;>1b67f74 length
+      try {
+        obj = known_objects.get(split[2]);
+        System.err.printf("fetch_field on %s for %s\n", obj.getClass().toString(), split[3]);
+        System.err.printf("isArray? %s\n", obj.getClass().isArray());
+        ret = obj.getClass().getField(split[3]).get(obj);
+      } catch (java.lang.Throwable e) {
+        e.printStackTrace();
+        out.printf("%s thrown: %s\n", command_id, e.toString());
+        return;
+      }
+
+      out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
+      known_objects.put(obj_ident(ret), ret);
+      
+    } else if (command_string.equals("get_array_length")) {
+      // fixme: why does fetch_field of an array not work?
+
+      Object obj;
+      obj = known_objects.get(split[2]);
+      System.out.printf("%s num return: %d\n", command_id, java.lang.reflect.Array.getLength(obj));
+
+    } else if (command_string.equals("fetch_array_element")) {
+      Object obj[];
+      Integer index;
+      Object ret;
+
+      obj = (Object[]) known_objects.get(split[2]);
+      index = Integer.decode(split[3]);
+      ret = obj[index];
+
+      out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
+      known_objects.put(obj_ident(ret), ret);
+
+
     } else if (command_string.equals("dump_string")) {
       Object obj = known_objects.get(split[2]);
       String out_string = (String)obj;
