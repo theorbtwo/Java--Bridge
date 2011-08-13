@@ -8,7 +8,7 @@ BEGIN {
 
 use Scalar::Util 'weaken', 'looks_like_number';
 use IPC::Run 'new_chunker';
-use Class::MOP;
+#use Class::MOP;
 use Java::Bridge::java::lang::Object;
 use Java::Bridge::array;
 
@@ -29,14 +29,25 @@ sub new {
   }
 
   $self->{in_string} = '';
-  $self->{harness} = IPC::Run::harness(['java',
-                                        -classpath => 'bin',
-                                        'uk.me.desert_island.theorbtwo.bridge.Main'
-                                       ],
-                                       '<',  \$self->{in_string},
-                                       '>',  new_chunker("\n"), sub {$self->stdout_handler(@_)},
-                                       '2>', new_chunker("\n"), sub {$self->stderr_handler(@_)}
-                                      );
+  if ($^O eq 'android') {
+    $self->{harness} = IPC::Run::harness(['dalvikvm',
+                                          -classpath => 'bridge.dex',
+                                          'uk.me.desert_island.theorbtwo.bridge.Main'
+                                         ],
+                                         '<',  \$self->{in_string},
+                                         '>',  new_chunker("\n"), sub {$self->stdout_handler(@_)},
+                                         '2>', new_chunker("\n"), sub {$self->stderr_handler(@_)}
+                                        );
+  } else {
+    $self->{harness} = IPC::Run::harness(['java',
+                                          -classpath => 'bin',
+                                          'uk.me.desert_island.theorbtwo.bridge.Main'
+                                         ],
+                                         '<',  \$self->{in_string},
+                                         '>',  new_chunker("\n"), sub {$self->stdout_handler(@_)},
+                                         '2>', new_chunker("\n"), sub {$self->stderr_handler(@_)}
+                                        );
+  }
   $self->{is_ready} = 0;
   while (!$self->{is_ready}) {
     $self->{harness}->pump;
@@ -62,6 +73,10 @@ sub send_and_wait {
 
   while (!exists $self->{replies}{$command_id}) {
     $self->{harness}->pump;
+
+    if (exists $self->{error_replies}{$command_id}) {
+      die delete $self->{error_replies}{$command_id};
+    }
   }
 
   return delete $self->{replies}{$command_id};
@@ -127,7 +142,7 @@ sub stdout_handler {
     $ret =~ s/\\(.)/$1/g;
     $self->{replies}{$command_id} = $ret;
   } elsif ($line =~ m/^(\d+) thrown: (.*)$/) {
-    die $2;
+    $self->{error_replies}{$1} = $2;
   } else {
     print "Got unhandled stuff from subprocess: '$line'\n";
   }
@@ -145,19 +160,30 @@ sub setup_class {
 
   my $perl_class = java_name_to_perl_name($java_name);
 
+  {
+    no strict 'refs';
+    return $perl_class if @{"$perl_class\::ISA"};
+  }
+
   # warn "setup_class $java_name -> $perl_class";
 
-  Class::MOP::Class->create(
-                            $perl_class,
-                            # We need someplace to stick our wierd
-                            # stuff.  This is as good as any, and
-                            # better then many.
-                            superclasses => [ 'Java::Bridge::java::lang::Object' ],
-                            methods => {
-                                        _static_bridge => sub {$bridge},
-                                        _java_name => sub {$java_name},
-                                       }
-                           );
+#  Class::MOP::Class->create(
+#                            $perl_class,
+#                            # We need someplace to stick our wierd
+#                            # stuff.  This is as good as any, and
+#                            # better then many.
+#                            superclasses => [ 'Java::Bridge::java::lang::Object' ],
+#                            methods => {
+#                                        _static_bridge => sub {$bridge},
+#                                        _java_name => sub {$java_name},
+#                                       }
+#                           );
+  {
+    no strict 'refs';
+    @{"$perl_class\::ISA"} = 'Java::Bridge::java::lang::Object';
+    *{"$perl_class\::_static_bridge"} = sub {$bridge};
+    *{"$perl_class\::_java_name"} = sub {$java_name};
+  }
 
   my $ret = eval "use $perl_class; 1;";
   my $e = $@;

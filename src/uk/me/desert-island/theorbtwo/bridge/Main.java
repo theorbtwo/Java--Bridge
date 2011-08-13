@@ -116,7 +116,7 @@ public class Main {
       }
 
       try {
-        meth = obj.getClass().getMethod(method_name, argument_classes);
+        meth = my_find_method(obj.getClass(), method_name, argument_classes);
       } catch (java.lang.Throwable e) {
         out.printf("%s thrown: %s\n", command_id, e.toString());
         return;
@@ -146,7 +146,7 @@ public class Main {
 
       try {
         klass = Class.forName(split[2]);
-        ret = klass.getMethod(split[3], argument_classes).invoke(null, arguments);
+        ret = my_find_method(klass, split[3], argument_classes).invoke(null, arguments);
       } catch (java.lang.Throwable e) {
         out.printf("%s thrown: %s\n", command_id, e.toString());
         return;
@@ -224,9 +224,9 @@ public class Main {
     } else if (command_string.equals("make_string")) {
       String the_string = split[2];
 
-      the_string = Pattern.compile("\\\\").matcher(the_string).replaceAll("\\");
       the_string = Pattern.compile("\\x20").matcher(the_string).replaceAll(" ");
       the_string = Pattern.compile("\\n").matcher(the_string).replaceAll("\n");
+      the_string = Pattern.compile("\\\\").matcher(the_string).replaceAll("\\\\");
 
       known_objects.put(obj_ident(the_string), the_string);
       out.printf("%s %s\n", command_id, obj_ident(the_string));
@@ -235,6 +235,115 @@ public class Main {
       err.print("Huh?\n");
       err.printf("command_string: '%s'\n", command_string);
     }
+  }
+
+  private static Method my_find_method(Class<?> klass, String name, Class<?>[] args) 
+    throws SecurityException, NoSuchMethodException
+  {
+    
+    try {
+      Method m;
+      System.err.printf("Trying to find an obvious method for name=%s\n", name);
+      m = klass.getMethod(name, args);
+      System.err.printf("Still here after getMethod() call\n");
+      return m;
+    } catch (NoSuchMethodException e) {
+      // Do nothing (just don't return).
+    }
+
+    System.err.printf("Trying non-obvious matches\n");
+    // We do not have a perfect match; try for a match where the
+    // method has primitive types but args has corresponding boxed types.
+    for (Method m : klass.getMethods()) {
+      boolean args_match = true;
+      Class<?>[] m_args;
+
+      if (!m.getName().equals(name)) {
+        continue;
+      }
+
+      m_args = m.getParameterTypes();
+
+      if (m_args.length != args.length) {
+        continue;
+      }
+
+      System.err.printf("We have a strong canidate %s\n", m.toString());
+
+      for (int i=0; i<args.length; i++) {
+        
+        String wanted_name = args[i].getName();
+        String got_name = m_args[i].getName();
+
+        // Java Language Specification, 3rd edition, 5.3 -- method arguments can have...
+        // • an identity conversion (§5.1.1)
+        if (args[i].equals(m_args[i])) {
+          continue;
+        }
+
+        // • a widening primitive conversion (§5.1.2)
+        // (Not applicable; our arguments will always be boxed types.)
+
+        // • a widening reference conversion (§5.1.5)
+        if (m_args[i].isAssignableFrom(args[i])) {
+          System.err.printf("%s vs %s is OK (isAssignableFrom / a widening reference conversion\n",
+                            wanted_name, got_name
+                            );
+          continue;
+        }
+
+        // • a boxing conversion (§5.1.7) optionally followed by widening reference conversion
+        // • an unboxing conversion (§5.1.8) optionally followed by a widening primitive conversion.
+
+        // Java Language Specification, 3rd edition, 5.1.8
+        if (wanted_name.equals("java.lang.Boolean") && got_name.equals("boolean")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Byte") && got_name.equals("byte")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Character") && got_name.equals("char")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Short") && got_name.equals("short")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Integer") && got_name.equals("int")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Long") && got_name.equals("long")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Float") && got_name.equals("float")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Double") && got_name.equals("double")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Integer") && got_name.equals("int")) {
+          continue;
+        }
+        
+        System.err.printf("Argument mismatch on wanted_name='%s' vs got_name='%s'\n", wanted_name, got_name);
+        args_match = false;
+        break;
+      }
+
+      if (args_match) {
+        System.err.printf("We got it: %s\n", m.toString());
+        return m;
+      }
+    }
+
+    throw new NoSuchMethodException();
   }
 
   private static String obj_ident(java.lang.Object obj) {

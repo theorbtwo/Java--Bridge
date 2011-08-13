@@ -19,12 +19,21 @@ what it consists of.
 
 The second element of each line is the command name.
 
-An object is represented by an obj_ident, which is a java class name
-(in binary form), followed by a '>' and the System.identityHashCode()
-of the object (in hex, lowercase, with no leading zeroes or 0x).
+An object is represented by an obj_ident, which can be:
 
-Undef (in Perl), or a java.lang.Object that refers to null (in Java)
-has the obj_ident C<null>.
+=over 4
+
+=item 
+
+a java class name (in binary form), followed by a '>' and the
+System.identityHashCode() of the object (in hex, lowercase, with no
+leading zeroes or 0x).
+
+=item
+
+C<null>, which represents C<undef> (in Perl), or C<null> (in Java).
+
+=back
 
 The commands are:
 
@@ -65,8 +74,6 @@ take parameters are not yet supported.
   5 call_static_method java.lang.System getProperties
 
 Calls, on the given *class*, the given static method.
-
-=back
 
 =item fetch_static_field
 
