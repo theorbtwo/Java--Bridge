@@ -31,7 +31,7 @@ sub new {
   $self->{in_string} = '';
   if ($^O eq 'android') {
     $self->{harness} = IPC::Run::harness(['dalvikvm',
-                                          -classpath => 'bridge.dex',
+                                          -classpath => 'bridge.jar',
                                           'uk.me.desert_island.theorbtwo.bridge.Main'
                                          ],
                                          '<',  \$self->{in_string},
@@ -41,7 +41,7 @@ sub new {
   } else {
     $self->{harness} = IPC::Run::harness(['java',
                                           -classpath => 'bin',
-                                          'uk.me.desert_island.theorbtwo.bridge.Main'
+                                          'uk.me.desert_island.theorbtwo.bridge.StdInOut'
                                          ],
                                          '<',  \$self->{in_string},
                                          '>',  new_chunker("\n"), sub {$self->stdout_handler(@_)},

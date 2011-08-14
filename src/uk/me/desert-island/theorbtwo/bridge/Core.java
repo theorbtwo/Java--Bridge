@@ -8,10 +8,10 @@ import java.lang.reflect.Method;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
-public class Main {
+public class Core {
   private static HashMap<String, Object> known_objects = new HashMap<String, Object>();
 
-  private static void handle_line(StringBuilder in_line, PrintStream out, PrintStream err) {
+  public static void handle_line(StringBuilder in_line, PrintStream out, PrintStream err) {
     String[] split = in_line.toString().split(" ");
     String command_id = split[0];
     String command_string = split[1];
