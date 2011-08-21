@@ -34,7 +34,7 @@ public class Main {
         known_objects.put(obj_ident(obj), obj);
         out.printf("%s %s\n", command_id, obj_ident(obj));
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s", command_id, e.toString());
+        out.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
 
@@ -154,7 +154,7 @@ public class Main {
 
       Object obj;
       obj = known_objects.get(split[2]);
-      System.out.printf("%s num return: %d\n", command_id, java.lang.reflect.Array.getLength(obj));
+      out.printf("%s num return: %d\n", command_id, java.lang.reflect.Array.getLength(obj));
 
     } else if (command_string.equals("fetch_array_element")) {
       Object obj[];

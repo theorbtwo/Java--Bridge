@@ -3,23 +3,27 @@ package uk.me.desert_island.theorbtwo.bridge;
 import android.widget.Toast;
 import android.app.Service;
 import android.content.Intent;
-import java.net.*;
-import uk.me.desert_island.theorbtwo.bridge.TcpIpConnection;
+import android.os.StrictMode;
 
 public class AndroidService extends Service {
-  
+  private static final String LOG_TAG = "JavaBridge";
+
   @Override
-  public int onStartCommand(Intent intent, int flags, int startId) {
-    InetAddress bind_address = InetAddress.getByName("0.0.0.0");
-    ServerSocket server_socket = new ServerSocket(9849, 1, bind_address);
-    
-    /* FIXME: Where is the proper androidy place to put this mainloop? */
-    while (true) {
-      Socket connected_socket = server_socket.accept();
-      
-      new TcpIpConnection(connected_socket).start();
-    }
-    
+  public int onStartCommand(Intent intent, int flags, int startId)
+  {
+    // For now, set the StrictMode policies to be fairly lenient, with
+    // the intention of becomming less leniant later.
+    // StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
+    //                            .detectAll()
+    //                            .penaltyLog()
+    //                            .build());
+    // StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
+    //                        .detectAll()
+    //                        .penaltyLog()
+    //                        .build());
+
+    (new TcpIpListener()).start();
+
     return START_STICKY;
   }
   
