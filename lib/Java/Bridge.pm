@@ -4,10 +4,15 @@ use strict;
 
 BEGIN {
   our $VERSION = 0.01;
+  $ENV{PERL_ANYEVENT_VERBOSE} = 2;
+  $ENV{PERL_ANYEVENT_STRICT} = 1;
 }
 
 use Scalar::Util 'weaken', 'looks_like_number';
-use IPC::Run 'new_chunker';
+use AnyEvent;
+use AnyEvent::Socket;
+use AnyEvent::Run;
+use AnyEvent::Strict;
 #use Class::MOP;
 use Java::Bridge::java::lang::Object;
 use Java::Bridge::array;
@@ -18,7 +23,7 @@ my $global_self;
 my $obj_ident_re = qr/null|\[*L?[a-z][A-Za-z0-9.\$]*;*>[0-9a-f]+/;
 
 sub new {
-  my ($class) = @_;
+  my ($class, $host) = @_;
 
   my $self = bless {}, $class;
   
@@ -29,32 +34,47 @@ sub new {
   }
 
   $self->{in_string} = '';
-  if ($^O eq 'android') {
-    $self->{harness} = IPC::Run::harness(['dalvikvm',
-                                          -classpath => 'bridge.jar',
-                                          'uk.me.desert_island.theorbtwo.bridge.Main'
-                                         ],
-                                         '<',  \$self->{in_string},
-                                         '>',  new_chunker("\n"), sub {$self->stdout_handler(@_)},
-                                         '2>', new_chunker("\n"), sub {$self->stderr_handler(@_)}
-                                        );
-  } else {
-    $self->{harness} = IPC::Run::harness(['java',
+  if ($host eq 'subprocess') {
+    # Make sure that the event loop has been loaded, so it can detect the subprocess
+    # dying immediately.
+    AnyEvent::detect;
+    $self->{handle} = AnyEvent::Run->new(
+                                         cmd => ['java',
                                           -classpath => 'bin',
                                           'uk.me.desert_island.theorbtwo.bridge.StdInOut'
                                          ],
-                                         '<',  \$self->{in_string},
-                                         '>',  new_chunker("\n"), sub {$self->stdout_handler(@_)},
-                                         '2>', new_chunker("\n"), sub {$self->stderr_handler(@_)}
+                                         on_error => sub {on_error($self, @_)},
+                                         on_read => sub {on_read($self, @_)},
+                                         # Lower latency on AnyEvent::Handle's side.
+                                         autocork => 0,
                                         );
+  } else {
+    $self->{handle} = AnyEvent::Handle->new(
+                                            connect => [$host, 9848],
+                                            on_error => sub {on_error($self, @_)},
+                                            on_read => sub {on_read($self, @_)},
+                                            # Lower latency on AnyEvent::Handle's side.
+                                            autocork => 0,
+                                            # Lower latency on the kernel's side
+                                            no_delay => 1,
+                                           );
   }
-  $self->{is_ready} = 0;
-  while (!$self->{is_ready}) {
-    $self->{harness}->pump;
-  }
+
+  $self->{ready_cb} = AnyEvent->condvar;
+  $self->{ready_cb}->recv;
 
   return $self;
 }
+
+sub on_error {
+  my ($self, $handle, $fatal, $message) = @_;
+
+  my $fataltext = $fatal ? 'Fatal' : 'Non-fatal';
+
+  print STDERR "$fataltext error communicating with remote: $message";
+}
+
+
 
 sub send_and_wait {
   my ($self, $command) = @_;
@@ -69,17 +89,14 @@ sub send_and_wait {
 
   print "send_and_wait sending $command";
 
-  $self->{in_string} .= $command;
+  $self->{handle}->push_write($command);
 
-  while (!exists $self->{replies}{$command_id}) {
-    $self->{harness}->pump;
+  my $cv = AnyEvent->condvar;
+  $self->{replies_cb}{$command_id} = $cv;
+  my $ret = $cv->recv;
+  delete $self->{replies_cb}{$command_id};
 
-    if (exists $self->{error_replies}{$command_id}) {
-      die delete $self->{error_replies}{$command_id};
-    }
-  }
-
-  return delete $self->{replies}{$command_id};
+  return $ret;
 }
 
 sub create {
@@ -94,8 +111,13 @@ sub create {
 
 END {
   my $self = $global_self;
-  # This should get DESTROYed after all bridged objects on it do, but that's OK, it will, since the bridged objects
-  # have a hashref with a reference to us.  Our references to them, OTOH, are weak.
+
+  # Already DESTROYed, or never initialized at all.
+  return if !$self;
+
+  # This should get DESTROYed after all bridged objects on it do, but
+  # that's OK, it will, since the bridged objects have a hashref with
+  # a reference to us.  Our references to them, OTOH, are weak.
 
   return if $self->{ready_for_suicide};
   
@@ -103,7 +125,7 @@ END {
 
   $self->{ready_for_suicide}++;
 
-  $self->{harness}->finish;
+  $self->{handle}->destroy;
 }
 
 #sub DESTROY {
@@ -114,38 +136,59 @@ END {
 #  }
 #}
 
-sub stdout_handler {
-  my ($self, $line) = @_;
+sub on_read {
+  my ($self, $handle) = @_;
+
+  printf "In on_read, rbuf = <<%s>>\n", $handle->{rbuf};
+
+  ($handle->{rbuf} =~ s/^(.*)\n//) or return;
+
+  my $line = $1;
+
   chomp $line;
 
-  print "stdout_handler: '$line'\n";
+  print "on_read line: '$line'\n";
 
+  my ($tag, $val);
+  
   if ($line eq 'Ready') {
-    $self->{is_ready} = 1;
+    $self->{ready_cb}->send;
+    return;
   } elsif ($line =~ m/^(\d+) ($obj_ident_re)$/) {
-    $self->{replies}{$1} = $self->objectify($2);
+    $tag = $1;
+    $val = $self->objectify($2);
   } elsif ($line =~ m/^(\d+) DESTROYed$/) {
-    $self->{replies}{$1} = 1;
+    $tag = $1;
+    $val = 1;
   } elsif ($line =~ m/^(\d+) SHUTDOWN$/) {
-    $self->{replies}{$1} = 1;
+    $tag = $1;
+    $val = 1;
   } elsif ($line =~ m/^(\d+) call_method return: ($obj_ident_re)$/) {
-    $self->{replies}{$1} = $self->objectify($2);
+    $tag = $1;
+    $val = $self->objectify($2);
   } elsif ($line =~ m/^(\d+) call_static_method return: ($obj_ident_re)$/) {
-    $self->{replies}{$1} = $self->objectify($2);
+    $tag = $1;
+    $val = $self->objectify($2);
   } elsif ($line =~ m/^(\d+) fetch_static_field return: ($obj_ident_re)$/) {
-    $self->{replies}{$1} = $self->objectify($2);
+    $tag = $1;
+    $val = $self->objectify($2);
   } elsif ($line =~ m/^(\d+) num return: (\d+)$/) {
-    $self->{replies}{$1} = $2;
+    $tag = $1;
+    $val = $2;
   } elsif ($line =~ m/^(\d+) dump_string: '(.*)'$/) {
-    my ($command_id, $ret) = ($1, $2);
-    $ret =~ s/\\n/\n/g;
-    $ret =~ s/\\(.)/$1/g;
-    $self->{replies}{$command_id} = $ret;
+    ($tag, $val) = ($1, $2);
+    $val =~ s/\\n/\n/g;
+    $val =~ s/\\(.)/$1/g;
   } elsif ($line =~ m/^(\d+) thrown: (.*)$/) {
-    $self->{error_replies}{$1} = $2;
+    $self->{replies_cb}{$1}->croak($2);
+    delete $self->{replies_cb}{$1};
   } else {
     print "Got unhandled stuff from subprocess: '$line'\n";
+    return;
   }
+
+  $self->{replies_cb}{$tag}->send($val);
+  delete $self->{replies_cb}{$tag};
 }
 
 sub java_name_to_perl_name {
