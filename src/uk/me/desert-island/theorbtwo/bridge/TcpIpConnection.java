@@ -31,7 +31,7 @@ public class TcpIpConnection extends java.lang.Thread {
 
     // FIXME: Hm.  Everything else looks like it might just be a copy of StdInOut... should it be merged back in?
     
-    out_stream.println("Ready!");
+    out_stream.println("Ready");
     
     
     java.lang.StringBuilder in_line = new StringBuilder();

@@ -50,7 +50,7 @@ sub new {
                                         );
   } else {
     $self->{handle} = AnyEvent::Handle->new(
-                                            connect => [$host, 9848],
+                                            connect => [$host, 9849],
                                             on_error => sub {on_error($self, @_)},
                                             on_read => sub {on_read($self, @_)},
                                             # Lower latency on AnyEvent::Handle's side.
@@ -72,6 +72,7 @@ sub on_error {
   my $fataltext = $fatal ? 'Fatal' : 'Non-fatal';
 
   print STDERR "$fataltext error communicating with remote: $message";
+  exit;
 }
 
 
