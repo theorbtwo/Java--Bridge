@@ -183,9 +183,9 @@ public class Core {
     } else if (command_string.equals("make_string")) {
       String the_string = split[2];
 
-      the_string = Pattern.compile("\\x20").matcher(the_string).replaceAll(" ");
-      the_string = Pattern.compile("\\n").matcher(the_string).replaceAll("\n");
-      the_string = Pattern.compile("\\\\").matcher(the_string).replaceAll("\\\\");
+      the_string = Pattern.compile("\\\\x20").matcher(the_string).replaceAll(" ");
+      the_string = Pattern.compile("\\\\n").matcher(the_string).replaceAll("\n");
+      the_string = Pattern.compile("\\\\\\\\").matcher(the_string).replaceAll("\\\\");
 
       known_objects.put(obj_ident(the_string), the_string);
       out.printf("%s %s\n", command_id, obj_ident(the_string));

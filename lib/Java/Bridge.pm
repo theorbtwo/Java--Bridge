@@ -127,6 +127,9 @@ END {
   $self->{ready_for_suicide}++;
 
   $self->{handle}->destroy;
+
+  # (Otherwise $? leaks somewhere...)
+  $? = 0;
 }
 
 #sub DESTROY {
@@ -140,7 +143,7 @@ END {
 sub on_read {
   my ($self, $handle) = @_;
 
-  printf "In on_read, rbuf = <<%s>>\n", $handle->{rbuf};
+  # printf "In on_read, rbuf = <<%s>>\n", $handle->{rbuf};
 
   ($handle->{rbuf} =~ s/^(.*)\n//) or return;
 
