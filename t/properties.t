@@ -6,7 +6,7 @@ use Test::More;
 use Java::Bridge;
 use Cwd;
 
-my $bridge = Java::Bridge->new;
+my $bridge = Java::Bridge->new("subprocess");
 is(ref($bridge), 'Java::Bridge');
 my $class = $bridge->setup_class('java.lang.System');
 is($class, 'Java::Bridge::java::lang::System');
