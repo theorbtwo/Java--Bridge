@@ -8,6 +8,7 @@ BEGIN {
   $ENV{PERL_ANYEVENT_STRICT} = 1;
 }
 
+use Try::Tiny;
 use Scalar::Util 'weaken', 'looks_like_number';
 use AnyEvent;
 use AnyEvent::Socket;
@@ -94,7 +95,32 @@ sub send_and_wait {
 
   my $cv = AnyEvent->condvar;
   $self->{replies_cb}{$command_id} = $cv;
-  my $ret = $cv->recv;
+  my $ret;
+  try {
+    $ret = $cv->recv;
+  } catch {
+    # caller(0) is Try::Tiny.
+    my ($package, $filename, $line) = caller(1);
+    my $error = $_;
+    $error =~ s/at \Q$filename\E line .*$//sm;
+    
+    my $at;
+    my $depth = 2;
+    while (1) {
+      my ($package, $filename, $line, $subroutine) = caller($depth) or last;
+
+      print "depth: $depth, package: $package, filename: $filename, line: $line, subroutine: $subroutine\n";
+
+      if (!($subroutine ~~ ['Java::Bridge::send_and_wait'])) {
+        $at = "at $filename line $line\n";
+        last;
+      }
+
+      $depth++;
+    }
+    die "$error $at";
+  };
+
   delete $self->{replies_cb}{$command_id};
 
   return $ret;
@@ -186,6 +212,8 @@ sub on_read {
   } elsif ($line =~ m/^(\d+) thrown: (.*)$/) {
     $self->{replies_cb}{$1}->croak($2);
     delete $self->{replies_cb}{$1};
+
+    return;
   } else {
     print "Got unhandled stuff from subprocess: '$line'\n";
     return;
