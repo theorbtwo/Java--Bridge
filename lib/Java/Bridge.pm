@@ -21,7 +21,7 @@ use Java::Bridge::array;
 
 my $global_self;
 
-my $obj_ident_re = qr/null|\[*L?[a-z][A-Za-z0-9.\$]*;*>[0-9a-f]+/;
+my $obj_ident_re = qr/null|\[*L?[a-z][A-Za-z0-9.\$_]*;*>[0-9a-f]+/;
 
 sub new {
   my ($class, $host) = @_;
@@ -76,8 +76,6 @@ sub on_error {
   exit;
 }
 
-
-
 sub send_and_wait {
   my ($self, $command) = @_;
 
@@ -124,16 +122,6 @@ sub send_and_wait {
   delete $self->{replies_cb}{$command_id};
 
   return $ret;
-}
-
-sub create {
-  my ($self, $java_class) = @_;
-
-  if (@_ > 2) {
-    die "Non-default constructors not yet handled";
-  }
-
-  $self->send_and_wait("create $java_class\n");
 }
 
 END {
@@ -230,6 +218,22 @@ sub java_name_to_perl_name {
   return "Java::Bridge::$java_name";
 }
 
+sub fetch_bridge {
+  my ($self) = @_;
+
+  $self->send_and_wait("fetch_bridge\n");
+}
+
+sub create {
+  my ($self, $java_class) = @_;
+
+  if (@_ > 2) {
+    die "Non-default constructors not yet handled";
+  }
+
+  $self->send_and_wait("create $java_class\n");
+}
+
 sub setup_class {
   my ($bridge, $java_name) = @_;
 
@@ -289,7 +293,7 @@ sub objectify {
     return $bridge->{known_objects}{$obj_ident};
   }
 
-  my ($java_class, $hash_code) = ($obj_ident =~ m/^(\[*L?[a-z][A-Za-z0-9.\$]*;*)>([0-9a-f]+)$/);
+  my ($java_class, $hash_code) = ($obj_ident =~ m/^(\[*L?[a-z][A-Za-z0-9.\$_]*;*)>([0-9a-f]+)$/);
 
   my $perl_class;
   if ($java_class =~ m/^\[L(.*);$/) {

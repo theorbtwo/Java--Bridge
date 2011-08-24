@@ -11,6 +11,14 @@ $bridge->setup_class('java.lang.Boolean');
 my $true = Java::Bridge::java::lang::Boolean::TRUE();
 my $false = Java::Bridge::java::lang::Boolean::FALSE();
 
+
+my $bridge_obj = $bridge->fetch_bridge;
+
+my $runnable = $bridge->create('uk.me.desert_island.theorbtwo.bridge.BridgedRunnable', $bridge_obj);
+
+print $runnable, "\n";
+exit;
+
 $bridge->setup_class('javax.swing.JFrame');
 Java::Bridge::javax::swing::JFrame->setDefaultLookAndFeelDecorated($false);
 my $frame = $bridge->create('javax.swing.JFrame'); #, 'HelloWorldSwing');

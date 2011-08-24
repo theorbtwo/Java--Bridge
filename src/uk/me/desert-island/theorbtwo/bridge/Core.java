@@ -11,10 +11,12 @@ import java.util.regex.Matcher;
 public class Core {
   protected HashMap<String, Object> known_objects;
   protected PrintStream out_stream;
+  protected int outgoing_tag;
 
   public Core(PrintStream out) {
     this.known_objects = new HashMap<String, Object>();
     this.out_stream = out;
+    this.outgoing_tag = 0;
   }
 
   public void handle_line(StringBuilder in_line) {
@@ -196,10 +198,25 @@ public class Core {
       known_objects.put(obj_ident(the_string), the_string);
       out_stream.printf("%s %s\n", command_id, obj_ident(the_string));
 
+    } else if (command_string.equals("fetch_bridge")) {
+      known_objects.put(obj_ident(this), this);
+      out_stream.printf("%s %s\n", command_id, obj_ident(this));
+
     } else {
       System.err.print("Huh?\n");
       System.err.printf("command_string: '%s'\n", command_string);
     }
+  }
+
+  public void inform(Object obj, String meth, Object... args) {
+    String obj_ident = obj_ident(obj);
+    Integer tag = outgoing_tag++;
+    
+    if (args.length > 0) {
+      System.err.printf("inform with arguments not yet handled\n");
+    }
+
+    out_stream.printf("o%d %s\n", tag, obj_ident);
   }
 
   private static Method my_find_method(Class<?> klass, String name, Class<?>[] args) 
