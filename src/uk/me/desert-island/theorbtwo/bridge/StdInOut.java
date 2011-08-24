@@ -6,6 +6,8 @@ public class StdInOut {
   public static void main(String[] args)
     throws java.io.IOException
   {
+    Core core = new Core(System.out);
+    
     System.out.println("Ready\n");
 
     java.lang.StringBuilder in_line = new StringBuilder();
@@ -25,7 +27,7 @@ public class StdInOut {
         // newline.
         //System.err.printf("Got a line: '%s'\n", in_line);
 
-        Core.handle_line(in_line, System.out, System.err);
+        core.handle_line(in_line);
 
         in_line = new StringBuilder();
       } else if (c == -1) {

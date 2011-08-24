@@ -9,9 +9,15 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 public class Core {
-  private static HashMap<String, Object> known_objects = new HashMap<String, Object>();
+  protected HashMap<String, Object> known_objects;
+  protected PrintStream out_stream;
 
-  public static void handle_line(StringBuilder in_line, PrintStream out, PrintStream err) {
+  public Core(PrintStream out) {
+    this.known_objects = new HashMap<String, Object>();
+    this.out_stream = out;
+  }
+
+  public void handle_line(StringBuilder in_line) {
     String[] split = in_line.toString().split(" ");
     String command_id = split[0];
     String command_string = split[1];
@@ -25,33 +31,33 @@ public class Core {
       try {
         klass = Class.forName(split[2]);
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
 
       try {
         obj = klass.newInstance();
         known_objects.put(obj_ident(obj), obj);
-        out.printf("%s %s\n", command_id, obj_ident(obj));
+        out_stream.printf("%s %s\n", command_id, obj_ident(obj));
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s", command_id, e.toString());
+        out_stream.printf("%s thrown: %s", command_id, e.toString());
         return;
       }
 
     } else if (command_string.equals("DESTROY")) {
       known_objects.remove(split[2]);
-      out.printf("%s DESTROYed\n", command_id);
+      out_stream.printf("%s DESTROYed\n", command_id);
       
     } else if (command_string.equals("SHUTDOWN")) {
-      err.printf("Got SHUTDOWN, shutting down.\n");
+      System.err.printf("Got SHUTDOWN, shutting down.\n");
       
       if (!known_objects.isEmpty()) {
         for (String key : known_objects.keySet()) {
-          out.printf("Leaked %s: %s\n", key, known_objects.get(key));
+          out_stream.printf("Leaked %s: %s\n", key, known_objects.get(key));
         }
       }
       
-      out.printf("%s SHUTDOWN\n", command_id);
+      out_stream.printf("%s SHUTDOWN\n", command_id);
       
       System.exit(3);
       
@@ -77,18 +83,18 @@ public class Core {
       try {
         meth = my_find_method(obj.getClass(), method_name, argument_classes);
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
       
       try {
         ret = meth.invoke(obj, arguments);
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
       
-      out.printf("%s call_method return: %s\n", command_id, obj_ident(ret));
+      out_stream.printf("%s call_method return: %s\n", command_id, obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
       
     } else if (command_string.equals("call_static_method")) {
@@ -107,11 +113,11 @@ public class Core {
         klass = Class.forName(split[2]);
         ret = my_find_method(klass, split[3], argument_classes).invoke(null, arguments);
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
 
-      out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
+      out_stream.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
       
     } else if (command_string.equals("fetch_static_field")) {
@@ -122,11 +128,11 @@ public class Core {
         klass = Class.forName(split[2]);
         ret = klass.getField(split[3]).get(null);
       } catch (java.lang.Throwable e) {
-        out.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
 
-      out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
+      out_stream.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
       
     } else if (command_string.equals("fetch_field")) {
@@ -142,11 +148,11 @@ public class Core {
         ret = obj.getClass().getField(split[3]).get(obj);
       } catch (java.lang.Throwable e) {
         e.printStackTrace();
-        out.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
         return;
       }
 
-      out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
+      out_stream.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
       
     } else if (command_string.equals("get_array_length")) {
@@ -154,7 +160,7 @@ public class Core {
 
       Object obj;
       obj = known_objects.get(split[2]);
-      System.out.printf("%s num return: %d\n", command_id, java.lang.reflect.Array.getLength(obj));
+      out_stream.printf("%s num return: %d\n", command_id, java.lang.reflect.Array.getLength(obj));
 
     } else if (command_string.equals("fetch_array_element")) {
       Object obj[];
@@ -165,7 +171,7 @@ public class Core {
       index = Integer.decode(split[3]);
       ret = obj[index];
 
-      out.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
+      out_stream.printf("%s call_static_method return: %s\n", command_id, obj_ident(ret));
       known_objects.put(obj_ident(ret), ret);
 
 
@@ -178,7 +184,7 @@ public class Core {
       out_string = backslash_pattern.matcher(out_string).replaceAll("\\\\");
       out_string = newline_pattern.matcher(out_string).replaceAll("\\n");
 
-      out.printf("%s dump_string: '%s'\n", command_id, out_string);
+      out_stream.printf("%s dump_string: '%s'\n", command_id, out_string);
 
     } else if (command_string.equals("make_string")) {
       String the_string = split[2];
@@ -188,11 +194,11 @@ public class Core {
       the_string = Pattern.compile("\\\\\\\\").matcher(the_string).replaceAll("\\\\");
 
       known_objects.put(obj_ident(the_string), the_string);
-      out.printf("%s %s\n", command_id, obj_ident(the_string));
+      out_stream.printf("%s %s\n", command_id, obj_ident(the_string));
 
     } else {
-      err.print("Huh?\n");
-      err.printf("command_string: '%s'\n", command_string);
+      System.err.print("Huh?\n");
+      System.err.printf("command_string: '%s'\n", command_string);
     }
   }
 

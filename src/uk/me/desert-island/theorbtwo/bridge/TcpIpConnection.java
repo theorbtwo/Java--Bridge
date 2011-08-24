@@ -30,6 +30,7 @@ public class TcpIpConnection extends java.lang.Thread {
     
 
     // FIXME: Hm.  Everything else looks like it might just be a copy of StdInOut... should it be merged back in?
+    Core core = new Core(out_stream);
     
     out_stream.println("Ready");
     
@@ -49,7 +50,7 @@ public class TcpIpConnection extends java.lang.Thread {
         // newline.
         //System.err.printf("Got a line: '%s'\n", in_line);
 
-        Core.handle_line(in_line, out_stream, System.err);
+        core.handle_line(in_line);
 
         in_line = new StringBuilder();
       } else if (c == 13) {
