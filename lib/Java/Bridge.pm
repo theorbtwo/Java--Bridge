@@ -312,6 +312,7 @@ sub objectify {
   }
   
   my $obj = bless {}, $perl_class;
+  $obj->{java_class} = $java_class;
   $obj->{obj_ident} = $obj_ident;
   $obj->{hash_code} = $hash_code;
   $obj->{bridge} = $bridge;
@@ -357,6 +358,26 @@ sub magic_argument_to_java {
 
   if (not defined $perlish) {
     return ('null', undef);
+  } elsif (ref $perlish eq 'ARRAY') {
+    # *unblessed* array reference: convert into a Java array.
+    my %element_types;
+    for my $e (@$perlish) {
+      my $e_class = $e->getClass;
+      my $e_class_string = "".$e_class;
+      $element_types{$e_class}[0] = $e_class;
+      $element_types{$e_class}[1]++;
+    }
+
+    if (keys %element_types > 1) {
+      # Should we move up to the nearest common superclass/interface of?
+      die "Unclear type of array -- %element_types";
+    }
+    my $element_type = (%element_types)[1][0];
+
+    my $a = $self->setup_class('java.lang.reflect.Array')->newInstance($element_type, 0+@$perlish);
+    $a->[$_] = $perlish->[$_] for (0..$#{$perlish});
+
+    return $self->magic_argument_to_java($a);
   } elsif (ref $perlish and $perlish->isa('Java::Bridge::java::lang::Object')) {
     return ($perlish->{obj_ident}, undef);
   } elsif (not ref $perlish and not looks_like_number $perlish) {
