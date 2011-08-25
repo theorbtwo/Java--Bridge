@@ -109,7 +109,9 @@ sub send_and_wait {
 
       print "depth: $depth, package: $package, filename: $filename, line: $line, subroutine: $subroutine\n";
 
-      if (!($subroutine ~~ ['Java::Bridge::send_and_wait'])) {
+      if (!($subroutine ~~ ['Java::Bridge::send_and_wait',
+                            'Java::Bridge::call_method'
+                           ])) {
         $at = "at $filename line $line\n";
         last;
       }
