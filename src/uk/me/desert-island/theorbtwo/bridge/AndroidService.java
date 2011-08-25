@@ -7,6 +7,8 @@ import android.os.StrictMode;
 
 public class AndroidService extends Service {
   private static final String LOG_TAG = "JavaBridge";
+  
+  private static Service the_service;
 
   @Override
   public int onStartCommand(Intent intent, int flags, int startId)
@@ -22,6 +24,8 @@ public class AndroidService extends Service {
     //                        .penaltyLog()
     //                        .build());
 
+    the_service = this;
+
     (new TcpIpListener()).start();
 
     return START_STICKY;
@@ -30,5 +34,9 @@ public class AndroidService extends Service {
   @Override
   public android.os.IBinder onBind(Intent intent) {
     return null;
+  }
+
+  public static Service get_service() {
+    return the_service;
   }
 }
