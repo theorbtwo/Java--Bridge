@@ -227,13 +227,20 @@ sub fetch_bridge {
 }
 
 sub create {
-  my ($self, $java_class) = @_;
+  my ($self, $java_class, @perlish) = @_;
 
-  if (@_ > 2) {
-    die "Non-default constructors not yet handled";
+  my (@javaobj, @keepalive);
+
+  for my $perlish (@perlish) {
+    my ($javaobj, $keepalive) = $self->magic_argument_to_java($perlish);
+    push @javaobj, $javaobj;
+    push @keepalive, $keepalive;
   }
 
-  $self->send_and_wait("create $java_class\n");
+  my $args = join ' ', @javaobj;
+
+  my $ret = $self->send_and_wait("create $java_class $args\n");
+  return $ret;
 }
 
 sub setup_class {

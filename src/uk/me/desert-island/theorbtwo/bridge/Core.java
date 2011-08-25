@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.lang.Class;
 import java.util.HashMap;
 import java.lang.reflect.Method;
+import java.lang.reflect.Constructor;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
@@ -27,22 +28,39 @@ public class Core {
     // err.printf("command_string = '%s', rest_string = '%s'\n", command_string, rest_string);
     
     if (command_string.equals("create")) {
+        //        sending 3 create android.widget.Toast
       java.lang.Class klass;
       java.lang.Object obj;
+      Class<?>[] argument_classes = new Class<?>[split.length - 3];
+      Object[] arguments = new Object[split.length - 3];
+      Constructor ctor;
       
       try {
         klass = Class.forName(split[2]);
       } catch (java.lang.Throwable e) {
-        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s thrown: 1 %s\n", command_id, e.toString());
         return;
       }
 
+      for (int i = 3; i < split.length; i++) {
+        arguments[i-3] = known_objects.get(split[i]);
+        argument_classes[i-3] = arguments[i-3].getClass();
+      }
+
       try {
-        obj = klass.newInstance();
+        ctor = my_find_constructor(klass, argument_classes);
+      } catch (java.lang.Throwable e) {
+        out_stream.printf("%s thrown: 2 %s\n", command_id, e.toString());
+        return;
+      }
+      
+
+      try {
+        obj = ctor.newInstance(arguments);
         known_objects.put(obj_ident(obj), obj);
         out_stream.printf("%s %s\n", command_id, obj_ident(obj));
       } catch (java.lang.Throwable e) {
-        out_stream.printf("%s thrown: %s", command_id, e.toString());
+        out_stream.printf("%s thrown: 3 %s", command_id, e.toString());
         return;
       }
 
@@ -217,6 +235,110 @@ public class Core {
     }
 
     out_stream.printf("o%d %s\n", tag, obj_ident);
+  }
+
+  private static Constructor my_find_constructor(Class<?> klass, Class<?>[] args)
+    throws SecurityException, NoSuchMethodException
+  {
+    try {
+      Constructor c;
+      System.err.printf("Trying to find an obvious constructor\n");
+      c = klass.getConstructor(args);
+      System.err.printf("Still here after getConstructor() call\n");
+      return c;
+    } catch (NoSuchMethodException e) {
+      // Do nothing, just don't return.
+    }
+
+    for (Constructor c : klass.getConstructors()) {
+      // Rather annoyingly, it seems that dispite being nearly
+      // identical, constructors and methods have nothing useful in
+      // common in terms of inheritance tree.
+      
+      boolean args_match = true;
+      Class<?>[] c_args;
+
+      c_args = c.getParameterTypes();
+
+      if (c_args.length != args.length) {
+        continue;
+      }
+
+      System.err.printf("We have a strong canidate %s\n", c.toString());
+
+      for (int i=0; i<args.length; i++) {
+        String wanted_name = args[i].getName();
+        String got_name = c_args[i].getName();
+
+        // Java Language Specification, 3rd edition, 5.3 -- method arguments can have...
+        // • an identity conversion (§5.1.1)
+        if (args[i].equals(c_args[i])) {
+          continue;
+        }
+
+        // • a widening primitive conversion (§5.1.2)
+        // (Not applicable; our arguments will always be boxed types.)
+
+        // • a widening reference conversion (§5.1.5)
+        if (c_args[i].isAssignableFrom(args[i])) {
+          System.err.printf("%s vs %s is OK (isAssignableFrom / a widening reference conversion\n",
+                            wanted_name, got_name
+                            );
+          continue;
+        }
+
+        // • a boxing conversion (§5.1.7) optionally followed by widening reference conversion
+        // • an unboxing conversion (§5.1.8) optionally followed by a widening primitive conversion.
+
+        // Java Language Specification, 3rd edition, 5.1.8
+        if (wanted_name.equals("java.lang.Boolean") && got_name.equals("boolean")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Byte") && got_name.equals("byte")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Character") && got_name.equals("char")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Short") && got_name.equals("short")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Integer") && got_name.equals("int")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Long") && got_name.equals("long")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Float") && got_name.equals("float")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Double") && got_name.equals("double")) {
+          continue;
+        }
+        
+        if (wanted_name.equals("java.lang.Integer") && got_name.equals("int")) {
+          continue;
+        }
+        
+        System.err.printf("Argument mismatch on wanted_name='%s' vs got_name='%s'\n", wanted_name, got_name);
+        args_match = false;
+        break;
+      }
+
+      if (args_match) {
+        System.err.printf("We got it: %s\n", c.toString());
+        return c;
+      }
+    }
+
+    throw new NoSuchMethodException();
   }
 
   private static Method my_find_method(Class<?> klass, String name, Class<?>[] args) 
