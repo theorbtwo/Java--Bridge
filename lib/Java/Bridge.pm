@@ -18,6 +18,13 @@ use AnyEvent::Strict;
 use Java::Bridge::java::lang::Object;
 use Java::Bridge::array;
 
+sub DEBUG {
+}
+
+#sub DEBUG {
+#    print STDERR @_;
+#}
+
 
 my $global_self;
 
@@ -87,7 +94,7 @@ sub send_and_wait {
   
   $command = "$command_id $command";
 
-  print "send_and_wait sending $command";
+  DEBUG "send_and_wait sending $command";
 
   $self->{handle}->push_write($command);
 
@@ -167,7 +174,7 @@ sub on_read {
 
   chomp $line;
 
-  print "on_read line: '$line'\n";
+  DEBUG "on_read line: '$line'\n";
 
   my ($tag, $val);
   
