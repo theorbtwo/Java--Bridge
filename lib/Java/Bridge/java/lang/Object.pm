@@ -2,17 +2,19 @@ package Java::Bridge::java::lang::Object;
 use warnings;
 use strict;
 use overload ('""' => sub {$_[0]->toString},
-              #'%{}' => \&hashrefify,
+              '%{}' => sub {
+                my ($self) = @_;
+                tie my %ret, 'Java::Bridge::TieHashForFields', $self;
+                return \%ret;
+              },
+
               #nomethod => \&nomethod,
               #fallback => 0,
               bool => sub{1},
              );
 use Carp 'cluck';
-
-#sub nomethod {
-#  my ($left, $right, $reversed, $operator) = @_;
-#  die "nomethod for java.lang.Object, operator=$operator\n";
-#}
+use Java::Bridge::TieHashForFields;
+no overloading '%{}';
 
 sub DESTROY {
   my ($self) = @_;
@@ -21,6 +23,7 @@ sub DESTROY {
 
   # While in global destroy, all bets are off, so make sure the bridge still exists.
   # I'd love a better way to fix this.
+  no overloading;
   if ($self->{bridge}) {
     $self->{bridge}->destroy_object($self->{obj_ident});
   }
@@ -30,11 +33,13 @@ sub AUTOLOAD {
   my ($self, @args) = @_;
   our $AUTOLOAD;
 
+  no overloading;
+
   #if (@_ != 1) {
   #  die "Only methods without arguments supported (so far)";
   #}
 
-  if (!$self) {
+  if (@_ == 0) {
     # Static field -- constant, normally.
     my ($class, $methname) = ($AUTOLOAD =~ m/^(.*)::(.*?)$/);
 

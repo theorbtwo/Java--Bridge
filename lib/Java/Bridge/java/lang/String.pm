@@ -3,7 +3,8 @@ use warnings;
 use strict;
 use overload '""' => sub {
   my ($self) = @_;
-  
+
+  no overloading '%{}';
   $self->{bridge}->dump_string($self->{obj_ident});
 };
 
