@@ -79,7 +79,7 @@ sub on_error {
 
   my $fataltext = $fatal ? 'Fatal' : 'Non-fatal';
 
-  print STDERR "$fataltext error communicating with remote: $message";
+  print STDERR "$fataltext error communicating with remote: $message\n";
   exit;
 }
 
