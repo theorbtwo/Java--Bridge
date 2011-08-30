@@ -356,6 +356,46 @@ sub make_string {
   $self->send_and_wait("make_string $str");
 }
 
+sub integer_to_java {
+  my ($self, $perlish) = @_;
+
+  $self->create('java.lang.Integer', $self->string_to_java($perlish));
+}
+
+sub string_to_java {
+  my ($self, $perlish) = @_;
+
+  $self->make_string($perlish);
+}
+
+sub array_to_java {
+  my ($self, $perlish) = @_;
+
+  # *unblessed* array reference: convert into a Java array.
+  my %element_types;
+  for my $e (@$perlish) {
+    my $e_class = $e->getClass;
+    my $e_class_string = "".$e_class;
+    $element_types{$e_class}[0] = $e_class;
+    $element_types{$e_class}[1]++;
+  }
+  
+  if (keys %element_types > 1) {
+    # Should we move up to the nearest common superclass/interface of?
+    die "Unclear type of array -- %element_types";
+  }
+  my $element_type = (%element_types)[1][0];
+  
+  my $len = $self->integer_to_java(0+@$perlish);
+  
+  my $a = $self
+    ->setup_class('java.lang.reflect.Array')
+      ->newInstance($element_type, $len);
+  $a->[$_] = $perlish->[$_] for (0..$#{$perlish});
+
+  return $a;
+}
+
 sub magic_argument_to_java {
   my ($self, $perlish) = @_;
   my $temp;
@@ -364,36 +404,25 @@ sub magic_argument_to_java {
   die "magic_argument_to_java must be called in list context"
     unless wantarray;
 
-  if (not defined $perlish) {
+  my $jobj;
+  if (ref $perlish and $perlish->isa('Java::Bridge::java::lang::Object')) {
+    $jobj = $perlish;
+  } elsif (not defined $perlish) {
+    # undef is special; we don't bother converting it into a java object and back again, we just convert it directly.
     return ('null', undef);
   } elsif (ref $perlish eq 'ARRAY') {
-    # *unblessed* array reference: convert into a Java array.
-    my %element_types;
-    for my $e (@$perlish) {
-      my $e_class = $e->getClass;
-      my $e_class_string = "".$e_class;
-      $element_types{$e_class}[0] = $e_class;
-      $element_types{$e_class}[1]++;
-    }
-
-    if (keys %element_types > 1) {
-      # Should we move up to the nearest common superclass/interface of?
-      die "Unclear type of array -- %element_types";
-    }
-    my $element_type = (%element_types)[1][0];
-
-    my $a = $self->setup_class('java.lang.reflect.Array')->newInstance($element_type, 0+@$perlish);
-    $a->[$_] = $perlish->[$_] for (0..$#{$perlish});
-
-    return $self->magic_argument_to_java($a);
-  } elsif (ref $perlish and $perlish->isa('Java::Bridge::java::lang::Object')) {
-    return ($perlish->{obj_ident}, undef);
+    $jobj = $self->array_to_java($perlish);
   } elsif (not ref $perlish and not looks_like_number $perlish) {
-    my $strobj = $self->make_string($perlish);
-    return ($strobj->{obj_ident}, $strobj);
+    $jobj = $self->string_to_java($perlish);
+  } elsif (not ref $perlish and looks_like_number $perlish) {
+    $jobj = $self->integer_to_java($perlish);
   } else {
     die "Don't know how to magically make $perlish into a java argument";
   }
+
+  # jobj should now be a ref which isa Java::Bridge;:java::lang::Object
+  no overloading '%{}';
+  return ($jobj->{obj_ident}, $jobj);
 }
 
 sub call_method {
