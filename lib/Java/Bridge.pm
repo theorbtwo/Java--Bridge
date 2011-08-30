@@ -318,11 +318,12 @@ sub objectify {
     $perl_class = $bridge->setup_class($java_class);
   }
   
-  my $obj = bless {}, $perl_class;
-  $obj->{java_class} = $java_class;
-  $obj->{obj_ident} = $obj_ident;
-  $obj->{hash_code} = $hash_code;
-  $obj->{bridge} = $bridge;
+  my $obj = bless {
+                   java_class => $java_class,
+                   obj_ident => $obj_ident,
+                   hash_code => $hash_code,
+                   bridge => $bridge
+                  }, $perl_class;
 
   $bridge->{known_objects}{$obj_ident} = $obj;
   # anti-leak!
