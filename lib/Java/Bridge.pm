@@ -472,6 +472,10 @@ sub fetch_static_field {
 sub fetch_field {
   my ($self, $obj_ident, $name) = @_;
 
+  if (ref $obj_ident) {
+    ($obj_ident, my $guard) = $self->magic_argument_to_java($obj_ident);
+  }
+
   $self->send_and_wait("fetch_field $obj_ident $name\n");
 }
 
