@@ -103,14 +103,14 @@ public class Core {
       try {
         meth = my_find_method(obj.getClass(), method_name, argument_classes);
       } catch (java.lang.Throwable e) {
-        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s %s\n", command_id, this.text_for_throw(e));
         return;
       }
       
       try {
         ret = meth.invoke(obj, arguments);
       } catch (java.lang.Throwable e) {
-        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s %s\n", command_id, this.text_for_throw(e));
         return;
       }
       
@@ -133,7 +133,7 @@ public class Core {
         klass = Class.forName(split[2]);
         ret = my_find_method(klass, split[3], argument_classes).invoke(null, arguments);
       } catch (java.lang.Throwable e) {
-        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s %s\n", command_id, this.text_for_throw(e));
         return;
       }
 
@@ -148,7 +148,7 @@ public class Core {
         klass = Class.forName(split[2]);
         ret = klass.getField(split[3]).get(null);
       } catch (java.lang.Throwable e) {
-        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s %s\n", command_id, this.text_for_throw(e));
         return;
       }
 
@@ -168,7 +168,7 @@ public class Core {
         ret = obj.getClass().getField(split[3]).get(obj);
       } catch (java.lang.Throwable e) {
         e.printStackTrace();
-        out_stream.printf("%s thrown: %s\n", command_id, e.toString());
+        out_stream.printf("%s %s\n", command_id, text_for_throw(e));
         return;
       }
 
@@ -237,6 +237,18 @@ public class Core {
     out_stream.printf("o%d %s\n", tag, obj_ident);
   }
 
+  private String text_for_throw(Throwable e)
+  {
+    String ret = "thrown: ";
+    ret += e.toString();
+    ret += " -- ";
+    ret += e.getMessage();
+
+    e.printStackTrace();
+    
+    return ret;
+  }
+  
   private static Constructor my_find_constructor(Class<?> klass, Class<?>[] args)
     throws SecurityException, NoSuchMethodException
   {
